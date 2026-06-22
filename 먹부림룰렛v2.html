@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>서나의 먹부림 룰렛 🎲</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F0F0F;color:#F5F5F5;font-family:'Apple SD Gothic Neo','Malgun Gothic','Noto Sans KR',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:32px 16px 56px}
+h1{font-size:clamp(26px,6vw,40px);font-weight:800;letter-spacing:-1px;background:linear-gradient(90deg,#FF6B35,#E07AB1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{font-size:12px;letter-spacing:4px;color:#666;margin-bottom:8px}
+.pool-count{margin-top:6px;font-size:12px;color:#555}
+
+/* Group tabs */
+.group-tabs{display:flex;gap:4px;background:#1A1A1A;border-radius:14px;padding:4px;margin:24px 0 16px}
+.group-tab{padding:9px 20px;border-radius:10px;border:none;background:transparent;color:#555;font-weight:500;font-size:14px;cursor:pointer;transition:all .18s;font-family:inherit}
+.group-tab.active-meal{background:#FF6B3528;color:#FF6B35;outline:1.5px solid #FF6B3555}
+.group-tab.active-all{background:#88888828;color:#888;outline:1.5px solid #88888855}
+.group-tab.active-dessert{background:#E07AB128;color:#E07AB1;outline:1.5px solid #E07AB155}
+
+/* Category chips */
+.chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:560px;margin-bottom:24px}
+.chip{padding:6px 14px;border-radius:20px;border:1.5px solid #2C2C2C;background:transparent;color:#666;font-size:13px;cursor:pointer;transition:all .15s;font-family:inherit}
+.chip.active{font-weight:700}
+
+/* Result card */
+.card{width:100%;max-width:400px;background:#1A1A1A;border-radius:24px;border:1px solid #2A2A2A;padding:36px 28px;text-align:center;min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;margin-bottom:20px}
+.card-placeholder{color:#3A3A3A;font-size:15px;line-height:1.8}
+.card-glow{position:absolute;inset:0;pointer-events:none;border-radius:24px}
+.card-emoji{font-size:52px;margin-bottom:10px}
+.card-tag{font-size:11px;letter-spacing:2px;font-weight:600;margin-bottom:4px}
+.card-brand{font-size:13px;color:#666;margin-bottom:4px}
+.card-menu{font-size:clamp(22px,5vw,30px);font-weight:800;color:#F5F5F5;letter-spacing:-0.5px}
+
+/* CTA */
+.btn{padding:15px 48px;border-radius:50px;border:none;color:#fff;font-size:16px;font-weight:800;letter-spacing:.5px;cursor:pointer;transition:all .2s;margin-bottom:36px;font-family:inherit}
+.btn:disabled{background:#222;color:#444;cursor:not-allowed;box-shadow:none;transform:scale(.97)}
+
+/* History */
+.history-label{font-size:11px;color:#444;letter-spacing:2px;margin-bottom:10px;text-align:center}
+.history-list{display:flex;flex-direction:column;gap:6px;width:100%;max-width:400px}
+.history-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#141414;border-radius:12px;border:1px solid #1F1F1F}
+.history-emoji{font-size:18px}
+.history-menu{flex:1;font-size:13px;font-weight:600}
+.history-brand{font-size:11px;color:#444}
+.history-badge{font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700}
+
+/* Confetti */
+.confetti-piece{position:fixed;top:-10px;pointer-events:none;z-index:100;border-radius:2px}
+
+@keyframes fall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(105vh) rotate(720deg);opacity:0}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px) rotate(-2deg)}75%{transform:translateX(3px) rotate(2deg)}}
+@keyframes pop{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+.anim-shake{animation:shake .08s infinite}
+.anim-pop{animation:pop .3s ease-out}
+</style>
+</head>
+<body>
+
+<div style="text-align:center;margin-bottom:8px">
+  <div class="subtitle">오늘 뭐 먹지?</div>
+  <h1>서나의 먹부림 룰렛</h1>
+  <div class="pool-count" id="poolCount"></div>
+</div>
+
+<div class="group-tabs">
+  <button class="group-tab" data-group="전체" onclick="setGroup('전체')">✨ 전체</button>
+  <button class="group-tab" data-group="식사" onclick="setGroup('식사')">🍽️ 식사</button>
+  <button class="group-tab" data-group="디저트" onclick="setGroup('디저트')">🍰 디저트</button>
+</div>
+
+<div class="chips" id="chips"></div>
+
+<div class="card" id="card">
+  <div class="card-placeholder" id="placeholder">버튼을 눌러<br>오늘의 메뉴를 뽑아보세요</div>
+  <div id="resultInner" style="display:none;text-align:center"></div>
+  <div class="card-glow" id="cardGlow"></div>
+</div>
+
+<button class="btn" id="pickBtn" onclick="pick()">오늘의 메뉴 뽑기 🎲</button>
+
+<div id="historySection" style="display:none;width:100%;max-width:400px">
+  <div class="history-label">최근 뽑은 메뉴</div>
+  <div class="history-list" id="historyList"></div>
+</div>
+
+<script>
+const menuData = {
+  치킨:{emoji:"🍗",color:"#FF6B35",group:"식사",items:[
+    {brand:"자담치킨",menu:"불패치킨"},{brand:"BHC",menu:"뿌링클"},{brand:"BHC",menu:"치즈볼"},
+    {brand:"60계치킨",menu:"쯔란치킨"},{brand:"60계치킨",menu:"크랑이치킨"},
+    {brand:"BBQ",menu:"자메이카 통다리구이"},{brand:"BBQ",menu:"뿜치킨"},
+    {brand:"푸라닭",menu:"일품깐풍"},{brand:"푸라닭",menu:"마요피뇨"},
+    {brand:"처갓집",menu:"슈프림 양념치킨"},{brand:"맘스터치",menu:"핫치즈순살"},
+    {brand:"노랑통닭",menu:"뿌리노랑"},{brand:"지코바",menu:"지코바치킨"},
+    {brand:"기영이 숯불두마리치킨",menu:"분모자"},{brand:"기영이 숯불두마리치킨",menu:"돼껍"},
+    {brand:"네네치킨",menu:"스노윙치즈"}
+  ]},
+  떡볶이:{emoji:"🌶️",color:"#E63946",group:"식사",items:[
+    {brand:"엽떡",menu:"마라로제 (콘마요)"},{brand:"엽떡",menu:"마라엽떡"},
+    {brand:"엽떡",menu:"국물닭발"},{brand:"엽떡",menu:"무뼈닭발"},{brand:"엽떡",menu:"엽닭"},
+    {brand:"삼첩분식",menu:"바질 크림 떡볶이"},{brand:"삼첩분식",menu:"마라로제 떡볶이"},
+    {brand:"배떡",menu:"로제떡볶이"},{brand:"배떡",menu:"새우크림떡볶이"},{brand:"배떡",menu:"날치알주먹밥"},
+    {brand:"응떡",menu:"크림카레 떡볶이"},{brand:"명랑핫도그",menu:"라이스페이퍼떡볶이"}
+  ]},
+  피자:{emoji:"🍕",color:"#F4A261",group:"식사",items:[
+    {brand:"프레드 피자",menu:"레드콘리타"},{brand:"프레드 피자",menu:"쉬림플렉스"},
+    {brand:"노모어피자",menu:"옥수수 새우 피자"},{brand:"노모어피자",menu:"바질 마스카포네 뇨끼"},
+    {brand:"도미노피자",menu:"포테이토 피자 (엣지치즈+마요)"},{brand:"청년피자",menu:"허니비 피자 (마요추가)"},
+    {brand:"피자스쿨",menu:"까르보네 피자"},{brand:"피자스쿨",menu:"오지치즈포테이토피자"}
+  ]},
+  햄버거:{emoji:"🍔",color:"#8B5E3C",group:"식사",items:[
+    {brand:"프랭크버거",menu:"프랭크버거"},{brand:"프랭크버거",menu:"머쉬룸버거"},
+    {brand:"프랭크버거",menu:"베이컨치즈버거"},{brand:"프랭크버거",menu:"핫불고기버거"},
+    {brand:"프랭크버거",menu:"쉬림프버거"},{brand:"프랭크버거",menu:"어니언탑비프버거"},
+    {brand:"프랭크버거",menu:"해쉬비프버거"}
+  ]},
+  한식:{emoji:"🥘",color:"#2A9D8F",group:"식사",items:[
+    {brand:"",menu:"곱도리탕"},{brand:"",menu:"육회바른연어"},{brand:"",menu:"닭발"},
+    {brand:"",menu:"보쌈"},{brand:"",menu:"불족발"},{brand:"",menu:"곱창"},
+    {brand:"",menu:"숯불막창"},{brand:"",menu:"냉면"},{brand:"",menu:"방어"},
+    {brand:"",menu:"마라 두루치기"},{brand:"",menu:"고추장삼겹살"},{brand:"",menu:"간장게장"},
+    {brand:"",menu:"낙곱새"},{brand:"",menu:"물회"},
+    {brand:"두찜",menu:"실비한우곱찜닭"},{brand:"두찜",menu:"로제닭발"}
+  ]},
+  기타:{emoji:"🌏",color:"#6A4C93",group:"식사",items:[
+    {brand:"",menu:"마라탕"},{brand:"",menu:"마라샹궈"},{brand:"",menu:"꿔바로우"},
+    {brand:"",menu:"초밥"},{brand:"",menu:"베트남음식"},{brand:"",menu:"타코야끼"},
+    {brand:"",menu:"포케"},{brand:"",menu:"샐러드"},{brand:"",menu:"크림짬뽕"}
+  ]},
+  디저트:{emoji:"🍨",color:"#E07AB1",group:"디저트",items:[
+    {brand:"요아정",menu:"요아정"},{brand:"설빙",menu:"두바이초코설빙"},
+    {brand:"설빙",menu:"딸기마카롱설빙"},{brand:"설빙",menu:"ABC 초코 설빙"},
+    {brand:"",menu:"크림푸딩"},{brand:"",menu:"갸또"},{brand:"",menu:"크로플"},
+    {brand:"",menu:"파르페"},{brand:"카페인중독",menu:"햅쌀와플"},{brand:"카페인중독",menu:"로투스와플"},
+    {brand:"와플대학",menu:"애플시나몬 와플"},{brand:"와플대학",menu:"초코범벅젤라또 와플"},
+    {brand:"와플대학",menu:"딸기누텔라 와플"},{brand:"와플대학",menu:"블루베리범벅 와플"},
+    {brand:"와플대학",menu:"오레오누텔라 와플"},{brand:"",menu:"수플레"},
+    {brand:"",menu:"소금빵"},{brand:"",menu:"두바이 쫀득쿠키"}
+  ]}
+};
+
+const allItems = Object.entries(menuData).flatMap(([cat,{items,color,emoji,group}])=>
+  items.map(i=>({...i,category:cat,color,emoji,group}))
+);
+
+let activeGroup = "전체";
+let selectedCat = null;
+let spinning = false;
+let history = [];
+
+function getPool(){
+  if(selectedCat) return allItems.filter(i=>i.category===selectedCat);
+  if(activeGroup==="전체") return allItems;
+  return allItems.filter(i=>i.group===activeGroup);
+}
+
+function setGroup(g){
+  activeGroup=g; selectedCat=null;
+  renderChips(); updateBtn(); updatePoolCount();
+  document.querySelectorAll('.group-tab').forEach(b=>{
+    b.className='group-tab';
+    if(b.dataset.group===g){
+      if(g==="식사") b.className='group-tab active-meal';
+      else if(g==="디저트") b.className='group-tab active-dessert';
+      else b.className='group-tab active-all';
+    }
+  });
+}
+
+function toggleCat(cat){
+  selectedCat = selectedCat===cat ? null : cat;
+  renderChips(); updateBtn(); updatePoolCount();
+}
+
+function renderChips(){
+  const cats = activeGroup==="전체" ? Object.keys(menuData)
+    : Object.keys(menuData).filter(k=>menuData[k].group===activeGroup);
+  const c = document.getElementById('chips');
+  c.innerHTML = cats.map(cat=>{
+    const {emoji,color} = menuData[cat];
+    const active = selectedCat===cat;
+    const border = active ? color : '#2C2C2C';
+    const bg = active ? color+'22' : 'transparent';
+    const col = active ? color : '#666';
+    return `<button class="chip${active?' active':''}" onclick="toggleCat('${cat}')"
+      style="border-color:${border};background:${bg};color:${col}">${emoji} ${cat}</button>`;
+  }).join('');
+}
+
+function updatePoolCount(){
+  document.getElementById('poolCount').textContent = getPool().length+'개 메뉴 중 하나를 골라드립니다';
+}
+
+function updateBtn(){
+  const btn = document.getElementById('pickBtn');
+  const pool = getPool();
+  const accentColor = selectedCat ? menuData[selectedCat]?.color
+    : activeGroup==="디저트" ? "#E07AB1"
+    : activeGroup==="식사" ? "#FF6B35" : "#888";
+  if(!spinning){
+    btn.style.background=`linear-gradient(135deg,${accentColor},#E07AB1)`;
+    btn.style.boxShadow=`0 4px 28px ${accentColor}44`;
+    btn.style.transform='scale(1)';
+    btn.disabled=false;
+  }
+}
+
+function showResult(item, animClass){
+  document.getElementById('placeholder').style.display='none';
+  const r = document.getElementById('resultInner');
+  r.style.display='block';
+  r.className=animClass;
+  const groupLabel = item.group==="디저트"?"🍰 디저트":"🍽️ 식사";
+  r.innerHTML=`
+    <div class="card-emoji">${item.emoji}</div>
+    <div class="card-tag" style="color:${item.color}">${groupLabel} · ${item.category}</div>
+    ${item.brand?`<div class="card-brand">${item.brand}</div>`:''}
+    <div class="card-menu">${item.menu}</div>
+  `;
+  document.getElementById('cardGlow').style.background=
+    `radial-gradient(circle at 50% 50%, ${item.color}18 0%, transparent 70%)`;
+}
+
+function pick(){
+  if(spinning) return;
+  spinning=true;
+  const btn=document.getElementById('pickBtn');
+  btn.disabled=true; btn.textContent='뽑는 중...';
+  btn.style.background='#222'; btn.style.boxShadow='none'; btn.style.transform='scale(.97)';
+
+  const pool=getPool();
+  let count=0;
+  const iv=setInterval(()=>{
+    const tmp=pool[Math.floor(Math.random()*pool.length)];
+    showResult(tmp,'anim-shake');
+    count++;
+    if(count>10){
+      clearInterval(iv);
+      const final=pool[Math.floor(Math.random()*pool.length)];
+      showResult(final,'anim-pop');
+      history=[final,...history].slice(0,5);
+      renderHistory();
+      spinning=false;
+      btn.textContent='다시 뽑기 🎲';
+      updateBtn();
+      fireConfetti(final.color);
+    }
+  },80);
+}
+
+function renderHistory(){
+  const sec=document.getElementById('historySection');
+  const list=document.getElementById('historyList');
+  if(!history.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  list.innerHTML=history.map((item,i)=>`
+    <div class="history-item" style="opacity:${1-i*0.14}">
+      <span class="history-emoji">${item.emoji}</span>
+      <span class="history-menu">${item.menu}</span>
+      ${item.brand?`<span class="history-brand">${item.brand}</span>`:''}
+      <span class="history-badge" style="background:${item.color}22;color:${item.color}">
+        ${item.group==="디저트"?"디저트":item.category}
+      </span>
+    </div>
+  `).join('');
+}
+
+function fireConfetti(accentColor){
+  const colors=["#FF6B35","#E63946","#F4A261","#2A9D8F","#6A4C93","#E07AB1","#FFD166",accentColor];
+  for(let i=0;i<36;i++){
+    const el=document.createElement('div');
+    el.className='confetti-piece';
+    const size=6+Math.random()*8;
+    el.style.cssText=`
+      left:${Math.random()*100}%;width:${size}px;height:${size}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      border-radius:${Math.random()>.5?'50%':'2px'};
+      transform:rotate(${Math.random()*360}deg);
+      animation:fall 1.4s ${Math.random()*.4}s ease-in forwards;
+    `;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),2000);
+  }
+}
+
+// init
+setGroup('전체');
+updatePoolCount();
+</script>
+</body>
+</html>
